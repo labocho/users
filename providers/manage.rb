@@ -24,8 +24,22 @@ def whyrun_supported?
   true
 end
 
+def search_users(data_bag, group)
+  users = data_bag(data_bag).map{|id|
+    data_bag_item(data_bag, id).to_hash
+  }.select{|i|
+    i["groups"].include?(group)
+  }
+
+  if block_given?
+    users.each{|u| yield u }
+  else
+    users
+  end
+end
+
 action :remove do
-  search(new_resource.data_bag, "groups:#{new_resource.search_group} AND action:remove") do |rm_user|
+  search_users(new_resource.data_bag, new_resource.search_group).select{|u| u["action"] == "remove" }.each do |u|
     user rm_user['username'] ||= rm_user['id'] do
       action :remove
       force rm_user['force'] ||= false
@@ -37,7 +51,7 @@ action :create do
   users_groups = {}
   users_groups[new_resource.group_name] = []
 
-  search(new_resource.data_bag, "groups:#{new_resource.search_group} AND NOT action:remove") do |u|
+  search_users(new_resource.data_bag, new_resource.search_group).select{|u| u["action"] != "remove" }.each do |u|
     u['username'] ||= u['id']
     u['groups'].each do |g|
       users_groups[g] = [] unless users_groups.key?(g)
